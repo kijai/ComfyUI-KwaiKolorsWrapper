@@ -8,4 +8,5 @@ to `ComfyUI/models/diffusers/Kolors`
 
 For now the text enconder seems to take ~13-15GB VRAM, while the inference after that only ~9GB.
 
-![image](https://github.com/kijai/ComfyUI-KwaiKolorsWrapper/assets/40791699/ede50c66-042f-4c88-96c1-31f8275af227)
+![image](https://github.com/kijai/ComfyUI-KwaiKolorsWrapper/assets/40791699/7d9ef221-bb0e-4ec5-a9aa-9e46151118f0)
+

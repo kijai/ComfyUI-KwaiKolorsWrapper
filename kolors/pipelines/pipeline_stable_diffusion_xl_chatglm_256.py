@@ -107,8 +107,8 @@ class StableDiffusionXLPipeline(DiffusionPipeline, FromSingleFileMixin, LoraLoad
 
     def __init__(
         self,
-        text_encoder: ChatGLMModel,
-        tokenizer: ChatGLMTokenizer,
+        # text_encoder: ChatGLMModel,
+        # tokenizer: ChatGLMTokenizer,
         unet: UNet2DConditionModel,
         scheduler: KarrasDiffusionSchedulers,
         force_zeros_for_empty_prompt: bool = True,
@@ -117,8 +117,8 @@ class StableDiffusionXLPipeline(DiffusionPipeline, FromSingleFileMixin, LoraLoad
 
         self.register_modules(
             #vae=vae,
-            text_encoder=text_encoder,
-            tokenizer=tokenizer,
+            #text_encoder=text_encoder,
+            #tokenizer=tokenizer,
             unet=unet,
             scheduler=scheduler,
         )

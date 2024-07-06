@@ -3,13 +3,14 @@ import os
 import random
 import re
 import gc
-
+import sys
 import comfy.model_management as mm
 from comfy.utils import ProgressBar, load_torch_file
 
 import folder_paths
 
 script_directory = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(script_directory)
 
 from .kolors.pipelines.pipeline_stable_diffusion_xl_chatglm_256 import StableDiffusionXLPipeline
 from .kolors.models.modeling_chatglm import ChatGLMModel
@@ -59,7 +60,8 @@ class DownloadAndLoadKolorsModel:
             print(f"Downloading Kolor model to: {model_path}")
             from huggingface_hub import snapshot_download
             snapshot_download(repo_id=model,
-                            allow_patterns=['*fp16.safetensors*', '*.json', 'text_encoder/*', 'tokenizer/*'],
+                            allow_patterns=['*fp16.safetensors*', '*.json'],
+                            ignore_patthers=['text_encoder/*', 'tokenizer/*'],
                             local_dir=model_path,
                             local_dir_use_symlinks=False)
         pbar.update(1)
@@ -67,28 +69,19 @@ class DownloadAndLoadKolorsModel:
         scheduler = EulerDiscreteScheduler.from_pretrained(model_path, subfolder= 'scheduler')
         
         print("Load UNET...")
-        unet = UNet2DConditionModel.from_pretrained(model_path, subfolder= 'unet', variant="fp16", revision=None, low_cpu_mem_usage=True).to(dtype).eval()
-        print("Load TEXT_ENCODER...")
-        pbar.update(1)
+        unet = UNet2DConditionModel.from_pretrained(model_path, subfolder= 'unet', variant="fp16", revision=None, low_cpu_mem_usage=True).to(dtype).eval()      
 
-        text_encoder_path = os.path.join(model_path, "text_encoder")
-        text_encoder = ChatGLMModel.from_pretrained(
-            text_encoder_path,
-            torch_dtype=dtype,
-            )
-        tokenizer = ChatGLMTokenizer.from_pretrained(text_encoder_path)
-        pbar.update(1)
         pipeline = StableDiffusionXLPipeline(
                 #vae=None,
-                text_encoder=text_encoder,
-                tokenizer=tokenizer,
+                #text_encoder=None,
+                #tokenizer=None,
                 unet=unet,
                 scheduler=scheduler,
                 force_zeros_for_empty_prompt=False
                 )
         
         #pipeline = pipeline.to(device)
-        pipeline.enable_model_cpu_offload()
+        #pipeline.enable_model_cpu_offload()
     
         kolors_model = {
             'pipeline': pipeline, 
@@ -97,13 +90,67 @@ class DownloadAndLoadKolorsModel:
 
         return (kolors_model,)
 
+class DownloadAndLoadChatGLM3:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {
+            "precision": ([ 'fp16', 'quant4', 'quant8'],
+                    {
+                    "default": 'fp16'
+                    }),
+            },
+        }
+
+    RETURN_TYPES = ("CHATGLM3MODEL",)
+    RETURN_NAMES = ("chatglm3_model",)
+    FUNCTION = "loadmodel"
+    CATEGORY = "KwaiKolorsWrapper"
+
+    def loadmodel(self, precision):
+
+        pbar = ProgressBar(2)
+        model = "Kwai-Kolors/Kolors"
+        model_name = model.rsplit('/', 1)[-1]
+        model_path = os.path.join(folder_paths.models_dir, "diffusers", model_name)
+        text_encoder_path = os.path.join(model_path, "text_encoder")
+      
+        if not os.path.exists(text_encoder_path):
+            print(f"Downloading Kolor model to: {model_path}")
+            from huggingface_hub import snapshot_download
+            snapshot_download(repo_id=model,
+                            allow_patterns=['text_encoder/*', 'tokenizer/*'],
+                            local_dir=model_path,
+                            local_dir_use_symlinks=False)
+        pbar.update(1)
+
+        print("Load TEXT_ENCODER...")
+
+        text_encoder_path = os.path.join(model_path, "text_encoder")
+        text_encoder = ChatGLMModel.from_pretrained(
+            text_encoder_path,
+            torch_dtype=torch.float16,
+            )
+        if precision == 'quant8':
+            text_encoder.quantize(8)
+        elif precision == 'quant4':
+            text_encoder.quantize(4)
+       
+        tokenizer = ChatGLMTokenizer.from_pretrained(text_encoder_path)
+        pbar.update(1)
     
+        chatglm3_model = {
+            'text_encoder': text_encoder, 
+            'tokenizer': tokenizer
+            }
+
+        return (chatglm3_model,)
+        
 class KolorsTextEncode:
     @classmethod
     def INPUT_TYPES(s):
         return {
             "required": {
-                "kolors_model": ("KOLORSMODEL", ),
+                "chatglm3_model": ("CHATGLM3MODEL", ),
                 "prompt": ("STRING", {"multiline": True, "default": "",}),
                 "negative_prompt": ("STRING", {"multiline": True, "default": "",}),
                 "num_images_per_prompt": ("INT", {"default": 1, "min": 1, "max": 128, "step": 1}),
@@ -115,7 +162,7 @@ class KolorsTextEncode:
     FUNCTION = "encode"
     CATEGORY = "KwaiKolorsWrapper"
 
-    def encode(self, kolors_model, prompt, negative_prompt, num_images_per_prompt):
+    def encode(self, chatglm3_model, prompt, negative_prompt, num_images_per_prompt):
         device = mm.get_torch_device()
         offload_device = mm.unet_offload_device()
         mm.unload_all_models()
@@ -143,8 +190,8 @@ class KolorsTextEncode:
             batch_size = len(prompt)
 
         # Define tokenizers and text encoders
-        tokenizer = kolors_model['pipeline'].tokenizer
-        text_encoder = kolors_model['pipeline'].text_encoder
+        tokenizer = chatglm3_model['tokenizer']
+        text_encoder = chatglm3_model['text_encoder']
 
         text_encoder.to(device)
 
@@ -341,11 +388,13 @@ class KolorsSampler:
      
 NODE_CLASS_MAPPINGS = {
     "DownloadAndLoadKolorsModel": DownloadAndLoadKolorsModel,
+    "DownloadAndLoadChatGLM3": DownloadAndLoadChatGLM3,
     "KolorsSampler": KolorsSampler,
     "KolorsTextEncode": KolorsTextEncode
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
     "DownloadAndLoadKolorsModel": "(Down)load Kolors Model",
+    "DownloadAndLoadChatGLM3": "(Down)load ChatGLM3 Model",
     "KolorsSampler": "Kolors Sampler",
     "KolorsTextEncode": "Kolors Text Encode"
 }

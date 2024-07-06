@@ -1,6 +1,7 @@
 import torch
 import os
-import gc
+import random
+import re
 
 import comfy.model_management as mm
 from comfy.utils import ProgressBar, load_torch_file
@@ -112,9 +113,19 @@ class KolorsTextEncode:
         offload_device = mm.unet_offload_device()
         mm.unload_all_models()
         mm.soft_empty_cache()
+         # Function to randomly select an option from the brackets
+        def choose_random_option(match):
+            options = match.group(1).split('|')
+            return random.choice(options)
+
+        # Randomly choose between options in brackets for prompt and negative_prompt
+        prompt = re.sub(r'\{([^{}]*)\}', choose_random_option, prompt)
+        negative_prompt = re.sub(r'\{([^{}]*)\}', choose_random_option, negative_prompt)
+
         if "|" in prompt:
             prompt = prompt.split("|")
-            negative_prompt = [negative_prompt] * len(prompt)
+            negative_prompt = [negative_prompt] * len(prompt)  # Replicate negative_prompt to match length of prompt list
+
 
         print(prompt)
         do_classifier_free_guidance = True

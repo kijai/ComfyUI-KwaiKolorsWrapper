@@ -1,13 +1,13 @@
 {
-  "last_node_id": 8,
-  "last_link_id": 8,
+  "last_node_id": 11,
+  "last_link_id": 13,
   "nodes": [
     {
       "id": 6,
       "type": "DownloadAndLoadKolorsModel",
       "pos": [
-        306,
-        390
+        547,
+        372
       ],
       "size": {
         "0": 315,
@@ -21,8 +21,8 @@
           "name": "kolors_model",
           "type": "KOLORSMODEL",
           "links": [
-            5,
-            7
+            7,
+            9
           ],
           "shape": 3,
           "slot_index": 0
@@ -37,18 +37,98 @@
       ]
     },
     {
+      "id": 9,
+      "type": "KolorsSampler",
+      "pos": [
+        1011,
+        371
+      ],
+      "size": {
+        "0": 315,
+        "1": 198
+      },
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "kolors_model",
+          "type": "KOLORSMODEL",
+          "link": 9
+        },
+        {
+          "name": "kolors_embeds",
+          "type": "KOLORS_EMBEDS",
+          "link": 10
+        }
+      ],
+      "outputs": [
+        {
+          "name": "latent",
+          "type": "LATENT",
+          "links": [
+            11
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KolorsSampler"
+      },
+      "widgets_values": [
+        1024,
+        1024,
+        243590846571465,
+        "randomize",
+        25,
+        5
+      ]
+    },
+    {
+      "id": 11,
+      "type": "VAELoader",
+      "pos": [
+        1323,
+        240
+      ],
+      "size": {
+        "0": 315,
+        "1": 58
+      },
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            12
+          ],
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAELoader"
+      },
+      "widgets_values": [
+        "sdxl.vae.safetensors"
+      ]
+    },
+    {
       "id": 8,
       "type": "KolorsTextEncode",
       "pos": [
-        464,
-        622
+        549,
+        522
       ],
       "size": {
         "0": 400,
         "1": 200
       },
       "flags": {},
-      "order": 1,
+      "order": 2,
       "mode": 0,
       "inputs": [
         {
@@ -62,7 +142,7 @@
           "name": "kolors_embeds",
           "type": "KOLORS_EMBEDS",
           "links": [
-            6
+            10
           ],
           "shape": 3
         }
@@ -71,114 +151,123 @@
         "Node name for S&R": "KolorsTextEncode"
       },
       "widgets_values": [
-        "photograph of a cat",
-        ""
-      ]
-    },
-    {
-      "id": 7,
-      "type": "KolorsSampler",
-      "pos": [
-        978,
-        381
-      ],
-      "size": {
-        "0": 315,
-        "1": 198
-      },
-      "flags": {},
-      "order": 2,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "kolors_model",
-          "type": "KOLORSMODEL",
-          "link": 5
-        },
-        {
-          "name": "kolors_embeds",
-          "type": "KOLORS_EMBEDS",
-          "link": 6,
-          "slot_index": 1
-        }
-      ],
-      "outputs": [
-        {
-          "name": "image",
-          "type": "IMAGE",
-          "links": [
-            8
-          ],
-          "shape": 3,
-          "slot_index": 0
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "KolorsSampler"
-      },
-      "widgets_values": [
-        1024,
-        1024,
-        306094759174828,
-        "randomize",
-        25,
-        5
+        "cinematic photograph monkey giving two thumbs up",
+        "nsfw, naked",
+        4
       ]
     },
     {
       "id": 3,
       "type": "PreviewImage",
       "pos": [
-        1371,
-        380
+        1367,
+        467
       ],
-      "size": {
-        "0": 565.4349975585938,
-        "1": 588.4450073242188
-      },
+      "size": [
+        670,
+        646.6666259765625
+      ],
       "flags": {},
-      "order": 3,
+      "order": 5,
       "mode": 0,
       "inputs": [
         {
           "name": "images",
           "type": "IMAGE",
-          "link": 8
+          "link": 13
         }
       ],
       "properties": {
         "Node name for S&R": "PreviewImage"
       }
+    },
+    {
+      "id": 10,
+      "type": "VAEDecode",
+      "pos": [
+        1368,
+        369
+      ],
+      "size": {
+        "0": 210,
+        "1": 46
+      },
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 11
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 12,
+          "slot_index": 1
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            13
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAEDecode"
+      }
     }
   ],
   "links": [
     [
-      5,
+      7,
       6,
       0,
-      7,
+      8,
       0,
       "KOLORSMODEL"
     ],
     [
+      9,
       6,
+      0,
+      9,
+      0,
+      "KOLORSMODEL"
+    ],
+    [
+      10,
       8,
       0,
-      7,
+      9,
       1,
       "KOLORS_EMBEDS"
     ],
     [
-      7,
-      6,
+      11,
+      9,
       0,
-      8,
+      10,
       0,
-      "KOLORSMODEL"
+      "LATENT"
     ],
     [
-      8,
-      7,
+      12,
+      11,
+      0,
+      10,
+      1,
+      "VAE"
+    ],
+    [
+      13,
+      10,
       0,
       3,
       0,
@@ -189,10 +278,10 @@
   "config": {},
   "extra": {
     "ds": {
-      "scale": 0.7513148009015777,
+      "scale": 1,
       "offset": {
-        "0": -167.260986328125,
-        "1": -89.83100128173828
+        "0": -404.6999816894531,
+        "1": -111.86663818359375
       }
     }
   },

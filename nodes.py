@@ -55,9 +55,9 @@ class DownloadAndLoadKolorsModel:
                             allow_patterns=['*fp16.safetensors*', '*.json', 'text_encoder/*', 'tokenizer/*'],
                             local_dir=model_path,
                             local_dir_use_symlinks=False)
-        pbar.update(1)
-        print("Load VAE...")
-        vae = AutoencoderKL.from_pretrained(model_path, subfolder='vae', revision=None, variant="fp16").to(dtype)
+        #pbar.update(1)
+        #print("Load VAE...")
+        #vae = AutoencoderKL.from_pretrained(model_path, subfolder='vae', revision=None, variant="fp16").to(dtype)
 
         pbar.update(1)
 
@@ -75,7 +75,7 @@ class DownloadAndLoadKolorsModel:
         tokenizer = ChatGLMTokenizer.from_pretrained(text_encoder_path)
         pbar.update(1)
         pipeline = StableDiffusionXLPipeline(
-                vae=vae,
+                #vae=None,
                 text_encoder=text_encoder,
                 tokenizer=tokenizer,
                 unet=unet,
@@ -102,6 +102,7 @@ class KolorsTextEncode:
                 "kolors_model": ("KOLORSMODEL", ),
                 "prompt": ("STRING", {"multiline": True, "default": "",}),
                 "negative_prompt": ("STRING", {"multiline": True, "default": "",}),
+                "num_images_per_prompt": ("INT", {"default": 1, "min": 1, "max": 128, "step": 1}),
             },
         }
     
@@ -110,21 +111,18 @@ class KolorsTextEncode:
     FUNCTION = "encode"
     CATEGORY = "KwaiKolorsWrapper"
 
-    def encode(self, kolors_model, prompt, negative_prompt):
+    def encode(self, kolors_model, prompt, negative_prompt, num_images_per_prompt):
         device = mm.get_torch_device()
         offload_device = mm.unet_offload_device()
         mm.unload_all_models()
         mm.soft_empty_cache()
 
-        num_images_per_prompt = 1
         do_classifier_free_guidance = True
 
         if prompt is not None and isinstance(prompt, str):
             batch_size = 1
         elif prompt is not None and isinstance(prompt, list):
             batch_size = len(prompt)
-        else:
-            batch_size = prompt_embeds.shape[0]
 
         # Define tokenizers and text encoders
         tokenizers = [kolors_model['pipeline'].tokenizer]
@@ -258,8 +256,8 @@ class KolorsSampler:
             },
         }
     
-    RETURN_TYPES = ("IMAGE",)
-    RETURN_NAMES =("image",)
+    RETURN_TYPES = ("LATENT",)
+    RETURN_NAMES =("latent",)
     FUNCTION = "process"
     CATEGORY = "KwaiKolorsWrapper"
 
@@ -272,7 +270,7 @@ class KolorsSampler:
 
         generator= torch.Generator(device).manual_seed(seed)
 
-        image = pipeline(
+        latent = pipeline(
             prompt=None,
             prompt_embeds = kolors_embeds['prompt_embeds'],
             pooled_prompt_embeds = kolors_embeds['pooled_prompt_embeds'],
@@ -284,17 +282,19 @@ class KolorsSampler:
             guidance_scale=cfg,
             num_images_per_prompt=1,
             generator= generator,
-            output_type="pt",
-            ).images[0]
-        print(type(image))
-        print(image.shape)
+            output_type="latent",
+            ).images
+        print(type(latent))
+        print(latent.shape)
 
-        tensor_out = image.unsqueeze(0).permute(0, 2, 3, 1).cpu().float()
-        print(tensor_out.shape)
-        print(tensor_out.min(), tensor_out.max())
+        #tensor_out = latent.permute(0, 2, 3, 1).cpu().float()
+        #print(tensor_out.shape)
+        #print(tensor_out.min(), tensor_out.max())
+        vae_scaling_factor = 0.13025 #SDXL scaling factor
+        latent = latent / vae_scaling_factor
         
 
-        return (tensor_out,)   
+        return ({'samples': latent},)   
      
 NODE_CLASS_MAPPINGS = {
     "DownloadAndLoadKolorsModel": DownloadAndLoadKolorsModel,

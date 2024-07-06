@@ -117,7 +117,7 @@ class StableDiffusionXLPipeline(DiffusionPipeline, FromSingleFileMixin, LoraLoad
 
     def __init__(
         self,
-        vae: AutoencoderKL,
+        #vae: AutoencoderKL,
         text_encoder: ChatGLMModel,
         tokenizer: ChatGLMTokenizer,
         unet: UNet2DConditionModel,
@@ -127,14 +127,15 @@ class StableDiffusionXLPipeline(DiffusionPipeline, FromSingleFileMixin, LoraLoad
         super().__init__()
 
         self.register_modules(
-            vae=vae,
+            #vae=vae,
             text_encoder=text_encoder,
             tokenizer=tokenizer,
             unet=unet,
             scheduler=scheduler,
         )
         self.register_to_config(force_zeros_for_empty_prompt=force_zeros_for_empty_prompt)
-        self.vae_scale_factor = 2 ** (len(self.vae.config.block_out_channels) - 1)
+        #self.vae_scale_factor = 2 ** (len(self.vae.config.block_out_channels) - 1)
+        self.vae_scale_factor = 8
         self.image_processor = VaeImageProcessor(vae_scale_factor=self.vae_scale_factor)
         self.default_sample_size = self.unet.config.sample_size
 
@@ -195,7 +196,7 @@ class StableDiffusionXLPipeline(DiffusionPipeline, FromSingleFileMixin, LoraLoad
             self.to("cpu", silence_dtype_warnings=True)
             torch.cuda.empty_cache()  # otherwise we don't see the memory savings (but they probably exist)
 
-        for cpu_offloaded_model in [self.unet, self.text_encoder, self.vae]:
+        for cpu_offloaded_model in [self.unet, self.text_encoder]:
             cpu_offload(cpu_offloaded_model, device)
 
     def enable_model_cpu_offload(self, gpu_id=0):
@@ -219,7 +220,7 @@ class StableDiffusionXLPipeline(DiffusionPipeline, FromSingleFileMixin, LoraLoad
         model_sequence = (
             [self.text_encoder]
         )
-        model_sequence.extend([self.unet, self.vae])
+        model_sequence.extend([self.unet])
 
         hook = None
         for cpu_offloaded_model in model_sequence:
@@ -688,12 +689,12 @@ class StableDiffusionXLPipeline(DiffusionPipeline, FromSingleFileMixin, LoraLoad
         )
 
         # 2. Define call parameters
-        if prompt is not None and isinstance(prompt, str):
-            batch_size = 1
-        elif prompt is not None and isinstance(prompt, list):
-            batch_size = len(prompt)
-        else:
-            batch_size = prompt_embeds.shape[0]
+        # if prompt is not None and isinstance(prompt, str):
+        #     batch_size = 1
+        # elif prompt is not None and isinstance(prompt, list):
+        #     batch_size = len(prompt)
+        # else:
+        batch_size = prompt_embeds.shape[0]
 
         device = self._execution_device
 
@@ -813,9 +814,9 @@ class StableDiffusionXLPipeline(DiffusionPipeline, FromSingleFileMixin, LoraLoad
 
         # make sureo the VAE is in float32 mode, as it overflows in float16
         # torch.cuda.empty_cache()
-        if self.vae.dtype == torch.float16 and self.vae.config.force_upcast:
-            self.upcast_vae()
-            latents = latents.to(next(iter(self.vae.post_quant_conv.parameters())).dtype)
+        # if self.vae.dtype == torch.float16 and self.vae.config.force_upcast:
+        #     self.upcast_vae()
+        #     latents = latents.to(next(iter(self.vae.post_quant_conv.parameters())).dtype)
 
 
         if not output_type == "latent":

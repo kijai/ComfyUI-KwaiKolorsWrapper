@@ -55,10 +55,6 @@ class DownloadAndLoadKolorsModel:
                             allow_patterns=['*fp16.safetensors*', '*.json', 'text_encoder/*', 'tokenizer/*'],
                             local_dir=model_path,
                             local_dir_use_symlinks=False)
-        #pbar.update(1)
-        #print("Load VAE...")
-        #vae = AutoencoderKL.from_pretrained(model_path, subfolder='vae', revision=None, variant="fp16").to(dtype)
-
         pbar.update(1)
 
         scheduler = EulerDiscreteScheduler.from_pretrained(model_path, subfolder= 'scheduler')
@@ -70,7 +66,7 @@ class DownloadAndLoadKolorsModel:
         text_encoder_path = os.path.join(model_path, "text_encoder")
         text_encoder = ChatGLMModel.from_pretrained(
             text_encoder_path,
-            torch_dtype=dtype
+            torch_dtype=dtype,
             )
         tokenizer = ChatGLMTokenizer.from_pretrained(text_encoder_path)
         pbar.update(1)
@@ -116,7 +112,11 @@ class KolorsTextEncode:
         offload_device = mm.unet_offload_device()
         mm.unload_all_models()
         mm.soft_empty_cache()
+        if "|" in prompt:
+            prompt = prompt.split("|")
+            negative_prompt = [negative_prompt] * len(prompt)
 
+        print(prompt)
         do_classifier_free_guidance = True
 
         if prompt is not None and isinstance(prompt, str):
@@ -282,17 +282,10 @@ class KolorsSampler:
             guidance_scale=cfg,
             num_images_per_prompt=1,
             generator= generator,
-            output_type="latent",
             ).images
-        print(type(latent))
-        print(latent.shape)
 
-        #tensor_out = latent.permute(0, 2, 3, 1).cpu().float()
-        #print(tensor_out.shape)
-        #print(tensor_out.min(), tensor_out.max())
         vae_scaling_factor = 0.13025 #SDXL scaling factor
         latent = latent / vae_scaling_factor
-        
 
         return ({'samples': latent},)   
      

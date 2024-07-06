@@ -13,8 +13,13 @@ script_directory = os.path.dirname(os.path.abspath(__file__))
 from .kolors.pipelines.pipeline_stable_diffusion_xl_chatglm_256 import StableDiffusionXLPipeline
 from .kolors.models.modeling_chatglm import ChatGLMModel
 from .kolors.models.tokenization_chatglm import ChatGLMTokenizer
-from diffusers import UNet2DConditionModel, AutoencoderKL
-from diffusers import EulerDiscreteScheduler
+from diffusers import UNet2DConditionModel
+from diffusers import (DPMSolverMultistepScheduler, 
+        EulerDiscreteScheduler, 
+        EulerAncestralDiscreteScheduler, 
+        DEISMultistepScheduler, 
+        UniPCMultistepScheduler
+)
 
 from comfy.utils import ProgressBar
 
@@ -59,6 +64,7 @@ class DownloadAndLoadKolorsModel:
         pbar.update(1)
 
         scheduler = EulerDiscreteScheduler.from_pretrained(model_path, subfolder= 'scheduler')
+        
         print("Load UNET...")
         unet = UNet2DConditionModel.from_pretrained(model_path, subfolder= 'unet', variant="fp16", revision=None, low_cpu_mem_usage=True).to(dtype).eval()
         print("Load TEXT_ENCODER...")
@@ -256,15 +262,29 @@ class KolorsSampler:
     def INPUT_TYPES(s):
         return {
             "required": {
-            "kolors_model": ("KOLORSMODEL", ),
-            "kolors_embeds": ("KOLORS_EMBEDS", ),
-            #"latent": ("LATENT", ),
-            "width": ("INT", {"default": 1024, "min": 64, "max": 2048, "step": 64}),
-            "height": ("INT", {"default": 1024, "min": 64, "max": 2048, "step": 64}),
-            "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
-            "steps": ("INT", {"default": 25, "min": 1, "max": 200, "step": 1}),
-            "cfg": ("FLOAT", {"default": 5.0, "min": 0.0, "max": 20.0, "step": 0.01}),
-            },
+                "kolors_model": ("KOLORSMODEL", ),
+                "kolors_embeds": ("KOLORS_EMBEDS", ),
+                #"latent": ("LATENT", ),
+                "width": ("INT", {"default": 1024, "min": 64, "max": 2048, "step": 64}),
+                "height": ("INT", {"default": 1024, "min": 64, "max": 2048, "step": 64}),
+                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
+                "steps": ("INT", {"default": 25, "min": 1, "max": 200, "step": 1}),
+                "cfg": ("FLOAT", {"default": 5.0, "min": 0.0, "max": 20.0, "step": 0.01}),
+
+                "scheduler": (
+                    [ 
+                        "EulerDiscreteScheduler",
+                        "EulerAncestralDiscreteScheduler",
+                        "DPMSolverMultistepScheduler",
+                        "DPMSolverMultistepScheduler_SDE_karras",
+                        "UniPCMultistepScheduler",
+                        "DEISMultistepScheduler",
+                    ],
+                      {
+                    "default": 'EulerDiscreteScheduler'
+                    }
+                    ),
+                },
         }
     
     RETURN_TYPES = ("LATENT",)
@@ -272,12 +292,45 @@ class KolorsSampler:
     FUNCTION = "process"
     CATEGORY = "KwaiKolorsWrapper"
 
-    def process(self, kolors_model, kolors_embeds, width, height, seed, steps, cfg):
+    def process(self, kolors_model, kolors_embeds, width, height, seed, steps, cfg, scheduler):
         device = mm.get_torch_device()
         offload_device = mm.unet_offload_device()
 
         pipeline = kolors_model['pipeline']
-        dtype = kolors_model['dtype']
+
+        scheduler_config = {
+            "beta_schedule": "scaled_linear",
+            "beta_start": 0.00085,
+            "beta_end": 0.014,
+            "dynamic_thresholding_ratio": 0.995,
+            "num_train_timesteps": 1100,
+            "prediction_type": "epsilon",
+            "rescale_betas_zero_snr": False,
+            "steps_offset": 1,
+            "timestep_spacing": "leading",
+            "trained_betas": None,
+        }
+        if scheduler == "DPMSolverMultistepScheduler":
+            noise_scheduler = DPMSolverMultistepScheduler(**scheduler_config)
+        elif scheduler == "DPMSolverMultistepScheduler_SDE_karras":
+            scheduler_config.update({"algorithm_type": "sde-dpmsolver++"})
+            scheduler_config.update({"use_karras_sigmas": True})
+            noise_scheduler = DPMSolverMultistepScheduler(**scheduler_config)
+        elif scheduler == "DEISMultistepScheduler":
+            scheduler_config.pop("rescale_betas_zero_snr")
+            noise_scheduler = DEISMultistepScheduler(**scheduler_config)
+        elif scheduler == "EulerDiscreteScheduler":
+            scheduler_config.update({"interpolation_type": "linear"})
+            scheduler_config.pop("dynamic_thresholding_ratio")
+            noise_scheduler = EulerDiscreteScheduler(**scheduler_config)
+        elif scheduler == "EulerAncestralDiscreteScheduler":
+            scheduler_config.pop("dynamic_thresholding_ratio")
+            noise_scheduler = EulerAncestralDiscreteScheduler(**scheduler_config)
+        elif scheduler == "UniPCMultistepScheduler":
+            scheduler_config.pop("rescale_betas_zero_snr")
+            noise_scheduler = UniPCMultistepScheduler(**scheduler_config)
+
+        pipeline.scheduler = noise_scheduler
 
         generator= torch.Generator(device).manual_seed(seed)
 

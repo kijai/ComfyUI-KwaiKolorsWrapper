@@ -96,10 +96,6 @@ class LoadChatGLM3:
     def INPUT_TYPES(s):
         return {"required": {
             "chatglm3_checkpoint": (folder_paths.get_filename_list("LLM"),),
-            "precision": ([ 'fp16', 'quant4', 'quant8'],
-                    {
-                    "default": 'fp16'
-                    }),
             },
         }
 
@@ -108,7 +104,7 @@ class LoadChatGLM3:
     FUNCTION = "loadmodel"
     CATEGORY = "KwaiKolorsWrapper"
 
-    def loadmodel(self, chatglm3_checkpoint, precision):
+    def loadmodel(self, chatglm3_checkpoint):
         device=mm.get_torch_device()
         offload_device=mm.unet_offload_device()
 
@@ -122,6 +118,10 @@ class LoadChatGLM3:
         text_encoder_config = ChatGLMConfig(**config)
         with (init_empty_weights() if is_accelerate_available else nullcontext()):
             text_encoder = ChatGLMModel(text_encoder_config)
+            if '4bit' in chatglm3_checkpoint:
+                text_encoder.quantize(4)
+            elif '8bit' in chatglm3_checkpoint:
+                text_encoder.quantize(8)
 
         text_encoder_sd = load_torch_file(chatglm3_path)
 
@@ -130,11 +130,6 @@ class LoadChatGLM3:
                 set_module_tensor_to_device(text_encoder, key, device=offload_device, value=text_encoder_sd[key])
         else:
             text_encoder.load_state_dict()
-
-        if precision == 'quant8':
-            text_encoder.quantize(8)
-        elif precision == 'quant4':
-            text_encoder.quantize(4)
        
         tokenizer_path = os.path.join(script_directory,'configs',"tokenizer")
         tokenizer = ChatGLMTokenizer.from_pretrained(tokenizer_path)
@@ -185,7 +180,7 @@ class DownloadAndLoadChatGLM3:
 
         text_encoder = ChatGLMModel.from_pretrained(
             text_encoder_path,
-            torch_dtype=torch.float16,
+            torch_dtype=torch.float16
             )
         if precision == 'quant8':
             text_encoder.quantize(8)

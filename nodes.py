@@ -24,6 +24,13 @@ from diffusers import (DPMSolverMultistepScheduler,
         UniPCMultistepScheduler
 )
 
+from contextlib import nullcontext
+try:
+    from accelerate import init_empty_weights
+    from accelerate.utils import set_module_tensor_to_device
+    is_accelerate_available = True
+except:
+    pass
 from comfy.utils import ProgressBar
 
 class DownloadAndLoadKolorsModel:
@@ -102,6 +109,8 @@ class LoadChatGLM3:
     CATEGORY = "KwaiKolorsWrapper"
 
     def loadmodel(self, chatglm3_checkpoint, precision):
+        device=mm.get_torch_device()
+        offload_device=mm.unet_offload_device()
 
         pbar = ProgressBar(2)
         chatglm3_path = folder_paths.get_full_path("LLM", chatglm3_checkpoint)
@@ -111,8 +120,16 @@ class LoadChatGLM3:
             config = json.load(file)
 
         text_encoder_config = ChatGLMConfig(**config)
-        text_encoder = ChatGLMModel(text_encoder_config)
-        text_encoder.load_state_dict(load_torch_file(chatglm3_path))
+        with (init_empty_weights() if is_accelerate_available else nullcontext()):
+            text_encoder = ChatGLMModel(text_encoder_config)
+
+        text_encoder_sd = load_torch_file(chatglm3_path)
+
+        if is_accelerate_available:
+            for key in text_encoder_sd:
+                set_module_tensor_to_device(text_encoder, key, device=offload_device, value=text_encoder_sd[key])
+        else:
+            text_encoder.load_state_dict()
 
         if precision == 'quant8':
             text_encoder.quantize(8)

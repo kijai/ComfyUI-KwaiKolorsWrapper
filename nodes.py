@@ -61,7 +61,7 @@ class DownloadAndLoadKolorsModel:
             from huggingface_hub import snapshot_download
             snapshot_download(repo_id=model,
                             allow_patterns=['*fp16.safetensors*', '*.json'],
-                            ignore_patthers=['text_encoder/*', 'tokenizer/*'],
+                            ignore_patterns=['text_encoder/*', 'tokenizer/*'],
                             local_dir=model_path,
                             local_dir_use_symlinks=False)
         pbar.update(1)
@@ -72,16 +72,9 @@ class DownloadAndLoadKolorsModel:
         unet = UNet2DConditionModel.from_pretrained(model_path, subfolder= 'unet', variant="fp16", revision=None, low_cpu_mem_usage=True).to(dtype).eval()      
 
         pipeline = StableDiffusionXLPipeline(
-                #vae=None,
-                #text_encoder=None,
-                #tokenizer=None,
                 unet=unet,
                 scheduler=scheduler,
-                force_zeros_for_empty_prompt=False
                 )
-        
-        #pipeline = pipeline.to(device)
-        #pipeline.enable_model_cpu_offload()
     
         kolors_model = {
             'pipeline': pipeline, 
@@ -291,7 +284,7 @@ class KolorsSampler:
             "required": {
                 "kolors_model": ("KOLORSMODEL", ),
                 "kolors_embeds": ("KOLORS_EMBEDS", ),
-                #"latent": ("LATENT", ),
+              
                 "width": ("INT", {"default": 1024, "min": 64, "max": 2048, "step": 64}),
                 "height": ("INT", {"default": 1024, "min": 64, "max": 2048, "step": 64}),
                 "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
@@ -312,6 +305,9 @@ class KolorsSampler:
                     }
                     ),
                 },
+                # "optional": {
+                #       "latent": ("LATENT", ),
+                #}
         }
     
     RETURN_TYPES = ("LATENT",)
@@ -319,9 +315,11 @@ class KolorsSampler:
     FUNCTION = "process"
     CATEGORY = "KwaiKolorsWrapper"
 
-    def process(self, kolors_model, kolors_embeds, width, height, seed, steps, cfg, scheduler):
+    def process(self, kolors_model, kolors_embeds, width, height, seed, steps, cfg, scheduler, latent=None):
         device = mm.get_torch_device()
         offload_device = mm.unet_offload_device()
+
+        vae_scaling_factor = 0.13025 #SDXL scaling factor
 
         mm.soft_empty_cache()
         gc.collect()
@@ -366,8 +364,14 @@ class KolorsSampler:
 
         pipeline.unet.to(device)
 
-        latent = pipeline(
+        if latent is not None:
+            samples_in = latent['samples']
+            samples_in = samples_in * vae_scaling_factor
+            samples_in = samples_in.to(pipeline.unet.dtype).to(device)
+
+        latent_out = pipeline(
             prompt=None,
+            latents=samples_in if latent is not None else None,
             prompt_embeds = kolors_embeds['prompt_embeds'],
             pooled_prompt_embeds = kolors_embeds['pooled_prompt_embeds'],
             negative_prompt_embeds = kolors_embeds['negative_prompt_embeds'],
@@ -381,10 +385,10 @@ class KolorsSampler:
             ).images
 
         pipeline.unet.to(offload_device)
-        vae_scaling_factor = 0.13025 #SDXL scaling factor
-        latent = latent / vae_scaling_factor
+        
+        latent_out = latent_out / vae_scaling_factor
 
-        return ({'samples': latent},)   
+        return ({'samples': latent_out},)   
      
 NODE_CLASS_MAPPINGS = {
     "DownloadAndLoadKolorsModel": DownloadAndLoadKolorsModel,

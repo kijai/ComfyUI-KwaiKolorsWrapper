@@ -111,7 +111,6 @@ class StableDiffusionXLPipeline(DiffusionPipeline, FromSingleFileMixin, LoraLoad
         # tokenizer: ChatGLMTokenizer,
         unet: UNet2DConditionModel,
         scheduler: KarrasDiffusionSchedulers,
-        force_zeros_for_empty_prompt: bool = True,
     ):
         super().__init__()
 
@@ -122,7 +121,6 @@ class StableDiffusionXLPipeline(DiffusionPipeline, FromSingleFileMixin, LoraLoad
             unet=unet,
             scheduler=scheduler,
         )
-        self.register_to_config(force_zeros_for_empty_prompt=force_zeros_for_empty_prompt)
         self.vae_scale_factor = 8
         self.default_sample_size = self.unet.config.sample_size
 
@@ -196,7 +194,43 @@ class StableDiffusionXLPipeline(DiffusionPipeline, FromSingleFileMixin, LoraLoad
             ):
                 return torch.device(module._hf_hook.execution_device)
         return self.device
+    
+    def get_timesteps(self, num_inference_steps, strength, device, denoising_start=None):
+        # get the original timestep using init_timestep
+        if denoising_start is None:
+            init_timestep = min(int(num_inference_steps * strength), num_inference_steps)
+            t_start = max(num_inference_steps - init_timestep, 0)
+        else:
+            t_start = 0
 
+        timesteps = self.scheduler.timesteps[t_start * self.scheduler.order :]
+
+        # Strength is irrelevant if we directly request a timestep to start at;
+        # that is, strength is determined by the denoising_start instead.
+        if denoising_start is not None:
+            discrete_timestep_cutoff = int(
+                round(
+                    self.scheduler.config.num_train_timesteps
+                    - (denoising_start * self.scheduler.config.num_train_timesteps)
+                )
+            )
+
+            num_inference_steps = (timesteps < discrete_timestep_cutoff).sum().item()
+            if self.scheduler.order == 2 and num_inference_steps % 2 == 0:
+                # if the scheduler is a 2nd order scheduler we might have to do +1
+                # because `num_inference_steps` might be even given that every timestep
+                # (except the highest one) is duplicated. If `num_inference_steps` is even it would
+                # mean that we cut the timesteps in the middle of the denoising step
+                # (between 1st and 2nd derivative) which leads to incorrect results. By adding 1
+                # we ensure that the denoising process always ends after the 2nd derivate step of the scheduler
+                num_inference_steps = num_inference_steps + 1
+
+            # because t_n+1 >= t_n, we slice the timesteps starting from the end
+            timesteps = timesteps[-num_inference_steps:]
+            return timesteps, num_inference_steps
+
+        return timesteps, num_inference_steps - t_start
+    
     # Copied from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion.StableDiffusionPipeline.prepare_extra_step_kwargs
     def prepare_extra_step_kwargs(self, generator, eta):
         # prepare extra kwargs for the scheduler step, since not all schedulers have the same signature
@@ -275,7 +309,7 @@ class StableDiffusionXLPipeline(DiffusionPipeline, FromSingleFileMixin, LoraLoad
             )
 
     # Copied from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion.StableDiffusionPipeline.prepare_latents
-    def prepare_latents(self, batch_size, num_channels_latents, height, width, dtype, device, generator, latents=None):
+    def prepare_latents(self, batch_size, num_channels_latents, timesteps, num_images_per_prompt, height, width, dtype, device, generator, latents=None):
         shape = (batch_size, num_channels_latents, height // self.vae_scale_factor, width // self.vae_scale_factor)
         if isinstance(generator, list) and len(generator) != batch_size:
             raise ValueError(
@@ -283,14 +317,29 @@ class StableDiffusionXLPipeline(DiffusionPipeline, FromSingleFileMixin, LoraLoad
                 f" size of {batch_size}. Make sure the batch size matches the length of the generators."
             )
 
+    
+
         if latents is None:
             latents = randn_tensor(shape, generator=generator, device=device, dtype=dtype)
+            latents = latents * self.scheduler.init_noise_sigma
+            print(latents.shape)
         else:
             latents = latents.to(device)
+            print(latents.shape)
 
+        latent_timestep = timesteps[:1].repeat(batch_size * num_images_per_prompt)
+        add_noise = True
+        if add_noise:
+            shape = latents.shape
+            noise = randn_tensor(shape, generator=generator, device=device, dtype=dtype)
+            # get latents
+            latents = self.scheduler.add_noise(latents, noise, latent_timestep)
+
+        print("init noise sigma: ", self.scheduler.init_noise_sigma)
         # scale the initial noise by the standard deviation required by the scheduler
-        latents = latents * self.scheduler.init_noise_sigma
+        
         return latents
+    
 
     def _get_add_time_ids(self, original_size, crops_coords_top_left, target_size, dtype):
         add_time_ids = list(original_size + crops_coords_top_left + target_size)
@@ -455,12 +504,20 @@ class StableDiffusionXLPipeline(DiffusionPipeline, FromSingleFileMixin, LoraLoad
         self.scheduler.set_timesteps(num_inference_steps, device=device)
 
         timesteps = self.scheduler.timesteps
-
+        strength = 0.5
+        timesteps, num_inference_steps = self.get_timesteps(
+            num_inference_steps,
+            strength,
+            device,
+            denoising_start=None,
+        )
         # 5. Prepare latent variables
         num_channels_latents = self.unet.config.in_channels
         latents = self.prepare_latents(
             batch_size * num_images_per_prompt,
             num_channels_latents,
+            timesteps,
+            num_images_per_prompt,
             height,
             width,
             prompt_embeds.dtype,

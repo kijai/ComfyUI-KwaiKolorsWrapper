@@ -112,6 +112,7 @@ class DownloadAndLoadChatGLM3:
             from huggingface_hub import snapshot_download
             snapshot_download(repo_id=model,
                             allow_patterns=['text_encoder/*', 'tokenizer/*'],
+                            ignore_patterns=['*.py', '*.pyc','*.json'],
                             local_dir=model_path,
                             local_dir_use_symlinks=False)
         pbar.update(1)

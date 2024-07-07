@@ -317,26 +317,16 @@ class StableDiffusionXLPipeline(DiffusionPipeline, FromSingleFileMixin, LoraLoad
                 f" size of {batch_size}. Make sure the batch size matches the length of the generators."
             )
 
-    
-
         if latents is None:
             latents = randn_tensor(shape, generator=generator, device=device, dtype=dtype)
             latents = latents * self.scheduler.init_noise_sigma
-            print(latents.shape)
         else:
+            latent_timestep = timesteps[:1].repeat(batch_size * num_images_per_prompt)
             latents = latents.to(device)
-            print(latents.shape)
-
-        latent_timestep = timesteps[:1].repeat(batch_size * num_images_per_prompt)
-        add_noise = True
-        if add_noise:
             shape = latents.shape
             noise = randn_tensor(shape, generator=generator, device=device, dtype=dtype)
             # get latents
             latents = self.scheduler.add_noise(latents, noise, latent_timestep)
-
-        print("init noise sigma: ", self.scheduler.init_noise_sigma)
-        # scale the initial noise by the standard deviation required by the scheduler
         
         return latents
     
@@ -366,6 +356,7 @@ class StableDiffusionXLPipeline(DiffusionPipeline, FromSingleFileMixin, LoraLoad
         width: Optional[int] = None,
         num_inference_steps: int = 50,
         denoising_end: Optional[float] = None,
+        strength: Optional[float] = 1.0,
         guidance_scale: float = 5.0,
         negative_prompt: Optional[Union[str, List[str]]] = None,
         num_images_per_prompt: Optional[int] = 1,
@@ -503,14 +494,12 @@ class StableDiffusionXLPipeline(DiffusionPipeline, FromSingleFileMixin, LoraLoad
         # 4. Prepare timesteps
         self.scheduler.set_timesteps(num_inference_steps, device=device)
 
-        timesteps = self.scheduler.timesteps
-        strength = 0.5
         timesteps, num_inference_steps = self.get_timesteps(
-            num_inference_steps,
-            strength,
-            device,
-            denoising_start=None,
-        )
+                num_inference_steps,
+                strength,
+                device,
+                denoising_start=None,
+            )
         # 5. Prepare latent variables
         num_channels_latents = self.unet.config.in_channels
         latents = self.prepare_latents(

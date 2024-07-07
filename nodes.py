@@ -305,9 +305,10 @@ class KolorsSampler:
                     }
                     ),
                 },
-                # "optional": {
-                #       "latent": ("LATENT", ),
-                #}
+                "optional": {
+                      "latent": ("LATENT", ),
+                      "denoise_strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
+                }
         }
     
     RETURN_TYPES = ("LATENT",)
@@ -315,7 +316,7 @@ class KolorsSampler:
     FUNCTION = "process"
     CATEGORY = "KwaiKolorsWrapper"
 
-    def process(self, kolors_model, kolors_embeds, width, height, seed, steps, cfg, scheduler, latent=None):
+    def process(self, kolors_model, kolors_embeds, width, height, seed, steps, cfg, scheduler, latent=None, denoise_strength=1.0):
         device = mm.get_torch_device()
         offload_device = mm.unet_offload_device()
 
@@ -382,6 +383,7 @@ class KolorsSampler:
             guidance_scale=cfg,
             num_images_per_prompt=1,
             generator= generator,
+            strength=denoise_strength,
             ).images
 
         pipeline.unet.to(offload_device)

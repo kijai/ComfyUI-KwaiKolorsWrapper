@@ -30,8 +30,6 @@ PS C:\ComfyUI_windows_portable\ComfyUI\models\diffusers\Kolors> tree /F
 │
 ├───text_encoder
 │       config.json
-│       configuration_chatglm.py
-│       modeling_chatglm.py
 │       pytorch_model-00001-of-00007.bin
 │       pytorch_model-00002-of-00007.bin
 │       pytorch_model-00003-of-00007.bin
@@ -40,23 +38,11 @@ PS C:\ComfyUI_windows_portable\ComfyUI\models\diffusers\Kolors> tree /F
 │       pytorch_model-00006-of-00007.bin
 │       pytorch_model-00007-of-00007.bin
 │       pytorch_model.bin.index.json
-│       quantization.py
-│       tokenization_chatglm.py
 │       tokenizer.model
 │       tokenizer_config.json
 │       vocab.txt
 │
-├───tokenizer
-│       tokenization_chatglm.py
-│       tokenizer.model
-│       tokenizer_config.json
-│       vocab.txt
-│
-├───unet
-│       config.json
-│       diffusion_pytorch_model.fp16.safetensors
-│
-└───vae
+└───unet
         config.json
         diffusion_pytorch_model.fp16.safetensors
 ```

@@ -19,6 +19,33 @@ Models (fp16, 16.5GB) are automatically downloaded from https://huggingface.co/K
 
 to `ComfyUI/models/diffusers/Kolors`
 
+Model folder structure needs to be the following:
+
+```
+PS C:\ComfyUI_windows_portable\ComfyUI\models\diffusers\Kolors> tree /F
+│   model_index.json
+│
+├───scheduler
+│       scheduler_config.json
+│
+├───text_encoder
+│       config.json
+│       pytorch_model-00001-of-00007.bin
+│       pytorch_model-00002-of-00007.bin
+│       pytorch_model-00003-of-00007.bin
+│       pytorch_model-00004-of-00007.bin
+│       pytorch_model-00005-of-00007.bin
+│       pytorch_model-00006-of-00007.bin
+│       pytorch_model-00007-of-00007.bin
+│       pytorch_model.bin.index.json
+│       tokenizer.model
+│       tokenizer_config.json
+│       vocab.txt
+│
+└───unet
+        config.json
+        diffusion_pytorch_model.fp16.safetensors
+```
 To run this, the text enconder is what takes most of the VRAM, but can be quantized to fit approximately these amounts:
 
 | Model | Size | 

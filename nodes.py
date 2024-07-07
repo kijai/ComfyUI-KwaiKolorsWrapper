@@ -3,17 +3,18 @@ import os
 import random
 import re
 import gc
-import sys
+import json
 import comfy.model_management as mm
 from comfy.utils import ProgressBar, load_torch_file
 
 import folder_paths
 
 script_directory = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(script_directory)
+
+folder_paths.add_model_folder_path("LLM", os.path.join(folder_paths.models_dir, "LLM", "checkpoints"))
 
 from .kolors.pipelines.pipeline_stable_diffusion_xl_chatglm_256 import StableDiffusionXLPipeline
-from .kolors.models.modeling_chatglm import ChatGLMModel
+from .kolors.models.modeling_chatglm import ChatGLMModel, ChatGLMConfig
 from .kolors.models.tokenization_chatglm import ChatGLMTokenizer
 from diffusers import UNet2DConditionModel
 from diffusers import (DPMSolverMultistepScheduler, 
@@ -82,6 +83,52 @@ class DownloadAndLoadKolorsModel:
             }
 
         return (kolors_model,)
+
+class LoadChatGLM3:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {
+            "chatglm3_checkpoint": (folder_paths.get_filename_list("LLM"),),
+            "precision": ([ 'fp16', 'quant4', 'quant8'],
+                    {
+                    "default": 'fp16'
+                    }),
+            },
+        }
+
+    RETURN_TYPES = ("CHATGLM3MODEL",)
+    RETURN_NAMES = ("chatglm3_model",)
+    FUNCTION = "loadmodel"
+    CATEGORY = "KwaiKolorsWrapper"
+
+    def loadmodel(self, chatglm3_checkpoint, precision):
+
+        pbar = ProgressBar(2)
+        chatglm3_path = folder_paths.get_full_path("LLM", chatglm3_checkpoint)
+        print("Load TEXT_ENCODER...")
+        text_encoder_config = os.path.join(script_directory, 'configs', 'text_encoder_config.json')
+        with open(text_encoder_config, 'r') as file:
+            config = json.load(file)
+
+        text_encoder_config = ChatGLMConfig(**config)
+        text_encoder = ChatGLMModel(text_encoder_config)
+        text_encoder.load_state_dict(load_torch_file(chatglm3_path))
+
+        if precision == 'quant8':
+            text_encoder.quantize(8)
+        elif precision == 'quant4':
+            text_encoder.quantize(4)
+       
+        tokenizer_path = os.path.join(script_directory,'configs',"tokenizer")
+        tokenizer = ChatGLMTokenizer.from_pretrained(tokenizer_path)
+        pbar.update(1)
+    
+        chatglm3_model = {
+            'text_encoder': text_encoder, 
+            'tokenizer': tokenizer
+            }
+
+        return (chatglm3_model,)
 
 class DownloadAndLoadChatGLM3:
     @classmethod
@@ -396,11 +443,13 @@ NODE_CLASS_MAPPINGS = {
     "DownloadAndLoadKolorsModel": DownloadAndLoadKolorsModel,
     "DownloadAndLoadChatGLM3": DownloadAndLoadChatGLM3,
     "KolorsSampler": KolorsSampler,
-    "KolorsTextEncode": KolorsTextEncode
+    "KolorsTextEncode": KolorsTextEncode,
+    "LoadChatGLM3": LoadChatGLM3
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
     "DownloadAndLoadKolorsModel": "(Down)load Kolors Model",
     "DownloadAndLoadChatGLM3": "(Down)load ChatGLM3 Model",
     "KolorsSampler": "Kolors Sampler",
-    "KolorsTextEncode": "Kolors Text Encode"
+    "KolorsTextEncode": "Kolors Text Encode",
+    "LoadChatGLM3": "Load ChatGLM3 Model"
 }

@@ -30,3 +30,6 @@ To run this, the text enconder is what takes most of the VRAM, but can be quanti
 After that, the sampling single image at 1024 can be expected to take similar amounts than SDXL. For VAE the base SDXL VAE is used.
 
 ![image](https://github.com/kijai/ComfyUI-KwaiKolorsWrapper/assets/40791699/ada4ac93-58ee-4957-96cd-2b327579d4f8)
+
+![image](https://github.com/kijai/ComfyUI-KwaiKolorsWrapper/assets/40791699/b6a17074-be09-4075-b66f-7857c871057a)
+

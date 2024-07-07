@@ -7,7 +7,8 @@ Rudimentary wrapper that runs Kwai-Kolors text2image pipeline using diffusers.
 Added alternative way to load the ChatGLM3 model from single safetensors file (the configs are included in this repo already).
 Included pre-quantized weights as well:
 
-![image](https://github.com/kijai/ComfyUI-KwaiKolorsWrapper/assets/40791699/eea1f807-84f5-411f-98da-432c4aebf235) 
+![image](https://github.com/kijai/ComfyUI-KwaiKolorsWrapper/assets/40791699/1e39d177-b059-4821-a4c3-897ebd4311f2)
+
 
 https://huggingface.co/Kijai/ChatGLM3-safetensors/upload/main
 

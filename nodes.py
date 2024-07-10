@@ -296,7 +296,7 @@ class KolorsTextEncode:
                 max_length=max_length,
                 truncation=True,
                 return_tensors="pt",
-            ).to('cuda')
+            ).to(device)
             output = text_encoder(
                     input_ids=uncond_input['input_ids'] ,
                     attention_mask=uncond_input['attention_mask'],

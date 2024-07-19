@@ -62,16 +62,28 @@ class DownloadAndLoadKolorsModel:
         pbar = ProgressBar(4)
 
         model_name = model.rsplit('/', 1)[-1]
-        model_path = os.path.join(folder_paths.models_dir, "diffusers", model_name)
-      
-        if not os.path.exists(model_path):
+        # 支持扩展模型目录 | Support from ComfyUI's extra_model_paths.yaml
+        model_paths = folder_paths.get_folder_paths("diffusers")
+        print("KolorsModel model_paths:", model_paths)
+
+        # 如果本地创建了空的Kolors模型目录，要先删掉才能从扩展目录加载
+        # If an empty “Kolors” directory has been created in the local “models/diffusers” directory, delete it first.        
+        found = False
+        for folder_path in model_paths:
+            model_path = os.path.join(folder_path, model_name)
+            if os.path.exists(model_path):
+                found = True
+                break
+        print("found model_paths:", found)
+        print("model_path:", model_path)
+        if not found:
             print(f"Downloading Kolor model to: {model_path}")
             from huggingface_hub import snapshot_download
             snapshot_download(repo_id=model,
-                            allow_patterns=['*fp16.safetensors*', '*.json'],
-                            ignore_patterns=['vae/*', 'text_encoder/*', 'tokenizer/*'],
-                            local_dir=model_path,
-                            local_dir_use_symlinks=False)
+                              allow_patterns=['*fp16.safetensors*', '*.json'],
+                              ignore_patterns=['vae/*', 'text_encoder/*', 'tokenizer/*'],
+                              local_dir=model_path,
+                              local_dir_use_symlinks=False)
         pbar.update(1)
 
         scheduler = EulerDiscreteScheduler.from_pretrained(model_path, subfolder= 'scheduler')
@@ -162,12 +174,26 @@ class DownloadAndLoadChatGLM3:
 
         pbar = ProgressBar(2)
         model = "Kwai-Kolors/Kolors"
+
         model_name = model.rsplit('/', 1)[-1]
-        model_path = os.path.join(folder_paths.models_dir, "diffusers", model_name)
+        # 支持扩展模型目录 | Support from ComfyUI's extra_model_paths.yaml
+        model_paths = folder_paths.get_folder_paths("diffusers")
+        print("ChatGLM3 model_paths:", model_paths)
+
+        # 如果本地创建了空的Kolors模型目录，要先删掉才能从扩展目录加载
+        # If an empty “Kolors” directory has been created in the local “models/diffusers” directory, delete it first.
+        found = False
+        for folder_path in model_paths:
+            model_path = os.path.join(folder_path, model_name)
+            if os.path.exists(model_path):
+                found = True
+                break
+        print("found model_paths:", found)
+        print("model_path:", model_path)
+        
         text_encoder_path = os.path.join(model_path, "text_encoder")
-      
-        if not os.path.exists(text_encoder_path):
-            print(f"Downloading ChatGLM3 to: {text_encoder_path}")
+        if not found:
+            print(f"Downloading Kolor model to: {model_path}")
             from huggingface_hub import snapshot_download
             snapshot_download(repo_id=model,
                             allow_patterns=['text_encoder/*'],

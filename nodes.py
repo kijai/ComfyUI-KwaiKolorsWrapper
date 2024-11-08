@@ -4,7 +4,17 @@ import random
 import re
 import gc
 import json
+import yaml
 import comfy.model_management as mm
+
+torch_device_name = mm.get_torch_device_name(mm.get_torch_device())
+if "[ZLUDA]" in torch_device_name:
+        def jit_script(f, *_, **__):
+                f.graph = torch._C.Graph() # pylint: disable=protected-access
+                return f
+        torch.jit.script = jit_script
+        print("ZLUDA Device:", torch_device_name)
+
 from comfy.utils import ProgressBar, load_torch_file
 
 import folder_paths
@@ -63,7 +73,22 @@ class DownloadAndLoadKolorsModel:
 
         model_name = model.rsplit('/', 1)[-1]
         model_path = os.path.join(folder_paths.models_dir, "diffusers", model_name)
+        base_path = folder_paths.base_path
+        extra_model_paths_config_path = os.path.join(folder_paths.base_path, "extra_model_paths.yaml")
+        if os.path.isfile(extra_model_paths_config_path):
+                with open(extra_model_paths_config_path, 'r') as stream:
+                        config = yaml.safe_load(stream)
+                for c in config:
+                        conf = config[c]
+                        if conf is None:
+                                continue
+                        if "base_path" in conf:
+                                base_path = conf.pop("base_path")
+                                base_path = os.path.expandvars(os.path.expanduser(base_path))
       
+        models_dir = os.path.join(base_path, "models")
+        model_path = os.path.join(models_dir, "diffusers", model_name)
+        
         if not os.path.exists(model_path):
             print(f"Downloading Kolor model to: {model_path}")
             from huggingface_hub import snapshot_download
@@ -164,6 +189,21 @@ class DownloadAndLoadChatGLM3:
         model = "Kwai-Kolors/Kolors"
         model_name = model.rsplit('/', 1)[-1]
         model_path = os.path.join(folder_paths.models_dir, "diffusers", model_name)
+        base_path = folder_paths.base_path
+        extra_model_paths_config_path = os.path.join(folder_paths.base_path, "extra_model_paths.yaml")
+        if os.path.isfile(extra_model_paths_config_path):
+                with open(extra_model_paths_config_path, 'r') as stream:
+                        config = yaml.safe_load(stream)
+                for c in config:
+                        conf = config[c]
+                        if conf is None:
+                                continue
+                        if "base_path" in conf:
+                                base_path = conf.pop("base_path")
+                                base_path = os.path.expandvars(os.path.expanduser(base_path))
+
+        models_dir = os.path.join(base_path, "models")
+        model_path = os.path.join(models_dir, "diffusers", model_name)
         text_encoder_path = os.path.join(model_path, "text_encoder")
       
         if not os.path.exists(text_encoder_path):
